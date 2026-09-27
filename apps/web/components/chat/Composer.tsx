@@ -1,0 +1,41 @@
+"use client";
+
+import { useState } from "react";
+
+export function Composer({
+  onSend,
+  disabled,
+}: {
+  onSend: (message: string) => void;
+  disabled: boolean;
+}) {
+  const [value, setValue] = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = value.trim();
+    if (!trimmed || disabled) return;
+    onSend(trimmed);
+    setValue("");
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex gap-2 border-t border-slate-200 bg-white p-4">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Ask about a contract, policy, or past client communication…"
+        disabled={disabled}
+        className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none disabled:bg-slate-50"
+      />
+      <button
+        type="submit"
+        disabled={disabled || value.trim().length === 0}
+        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+      >
+        Send
+      </button>
+    </form>
+  );
+}

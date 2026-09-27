@@ -1,0 +1,33 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+.coverage
+htmlcov/
+dev.db
+*.db
+
+# Node / Next.js
+node_modules/
+apps/web/.next/
+apps/web/out/
+apps/web/next-env.d.ts
+
+# Env / secrets
+.env
+.env.local
+*.local
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
