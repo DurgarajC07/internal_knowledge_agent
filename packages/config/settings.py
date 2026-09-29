@@ -56,6 +56,16 @@ class Settings(BaseSettings):
         default_factory=lambda: ["www.googleapis.com", "api.notion.com"]
     )
 
+    # --- OAuth connect flow (FR-6) ---
+    # `api_base_url` must exactly match the redirect URI registered in each
+    # provider's OAuth app console (`{api_base_url}/api/connectors/{provider}/callback`).
+    api_base_url: str = "http://localhost:8000"
+    # Where the callback sends the browser back to after connecting/failing.
+    frontend_base_url: str = "http://localhost:3000"
+
+    # --- Periodic connector re-sync (FR-6), run via Render Cron ---
+    ingestion_resync_interval_hours: int = 6
+
     # --- Rate limiting (Phase 5) ---
     rate_limit_per_minute: int = 30
 

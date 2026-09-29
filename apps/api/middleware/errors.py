@@ -14,6 +14,8 @@ from packages.core.exceptions import (
     EmailAlreadyRegisteredError,
     InsufficientContextError,
     KnowledgeAgentError,
+    OAuthConfigurationError,
+    OAuthStateInvalidError,
     ResourceNotFoundError,
     RetrievalTimeoutError,
     SSRFBlockedError,
@@ -32,6 +34,8 @@ _STATUS_BY_EXCEPTION: dict[type[KnowledgeAgentError], int] = {
     RetrievalTimeoutError: status.HTTP_504_GATEWAY_TIMEOUT,
     InsufficientContextError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     SSRFBlockedError: status.HTTP_400_BAD_REQUEST,
+    OAuthStateInvalidError: status.HTTP_401_UNAUTHORIZED,
+    OAuthConfigurationError: status.HTTP_424_FAILED_DEPENDENCY,
 }
 
 

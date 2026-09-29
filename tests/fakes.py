@@ -26,6 +26,12 @@ class FakeCredentialRepository:
             raise CredentialNotFoundError(f"No {provider.value} credential for tenant {tenant_id}")
         return self._credentials[key]
 
+    async def upsert(self, tenant_id: UUID, credential: ConnectorCredential) -> None:
+        self._credentials[(tenant_id, credential.provider)] = credential
+
+    async def list_providers(self, tenant_id: UUID) -> list[ConnectorProvider]:
+        return [provider for (tid, provider) in self._credentials if tid == tenant_id]
+
 
 class FakeEmbeddingClient:
     dimensions = 4

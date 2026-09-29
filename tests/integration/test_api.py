@@ -5,9 +5,11 @@ clients (Rule.md SS9: no live network calls, no real Qdrant/Ollama needed)."""
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from urllib.parse import parse_qs, urlparse
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+import respx
+from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from apps.api import dependencies as deps
@@ -40,7 +42,12 @@ async def client(tmp_path) -> AsyncIterator[AsyncClient]:
         await conn.run_sync(Base.metadata.create_all)
     session_factory = build_session_factory(engine)
 
-    test_settings = build_test_settings()
+    test_settings = build_test_settings(
+        google_drive_client_id="gd-client-id",
+        google_drive_client_secret="gd-client-secret",
+        notion_client_id="notion-client-id",
+        notion_client_secret="notion-client-secret",
+    )
     app = create_app()
 
     async def override_db_session() -> AsyncIterator[AsyncSession]:
@@ -157,3 +164,84 @@ async def test_cross_tenant_conversation_access_is_blocked(client: AsyncClient) 
     # Tenant B must not be able to read Tenant A's conversation by ID (Rule.md SS7).
     resp = await client.get(f"/api/conversations/{conversation_id}", headers=headers_b)
     assert resp.status_code == 404
+
+
+async def _register_admin(client: AsyncClient, email: str) -> dict[str, str]:
+    resp = await client.post(
+        "/api/auth/register",
+        json={"tenant_name": "Acme", "email": email, "password": "correct-horse-battery"},
+    )
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+async def test_connectors_list_shows_nothing_connected_initially(client: AsyncClient) -> None:
+    headers = await _register_admin(client, "admin1@acmelawpartners.com")
+    resp = await client.get("/api/connectors", headers=headers)
+    assert resp.status_code == 200
+    statuses = {s["provider"]: s["connected"] for s in resp.json()}
+    assert statuses == {"google_drive": False, "notion": False}
+
+
+async def test_connector_authorize_returns_a_google_url(client: AsyncClient) -> None:
+    headers = await _register_admin(client, "admin2@acmelawpartners.com")
+    resp = await client.get("/api/connectors/google_drive/authorize", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["authorize_url"].startswith("https://accounts.google.com/")
+
+
+async def test_connector_callback_rejects_a_forged_state(client: AsyncClient) -> None:
+    # The callback itself is intentionally unauthenticated (a browser
+    # redirect from Google/Notion has no Bearer header) -- tenant identity
+    # must come only from a verified `state` token, so a forged one is
+    # rejected outright with no session required to prove it.
+    resp = await client.get(
+        "/api/connectors/google_drive/callback",
+        params={"code": "irrelevant", "state": "not-a-real-token"},
+    )
+    assert resp.status_code == 401
+
+
+@respx.mock
+async def test_connector_full_oauth_round_trip_connects_and_lists_as_connected(
+    client: AsyncClient,
+) -> None:
+    headers = await _register_admin(client, "admin4@acmelawpartners.com")
+
+    authorize_resp = await client.get("/api/connectors/google_drive/authorize", headers=headers)
+    authorize_url = authorize_resp.json()["authorize_url"]
+    state = parse_qs(urlparse(authorize_url).query)["state"][0]
+
+    respx.post("https://oauth2.googleapis.com/token").mock(
+        return_value=Response(200, json={"access_token": "gd-tok", "scope": "drive.readonly"})
+    )
+
+    callback_resp = await client.get(
+        "/api/connectors/google_drive/callback",
+        params={"code": "auth-code", "state": state},
+        follow_redirects=False,
+    )
+    assert callback_resp.status_code in (302, 307)
+    assert "connected=google_drive" in callback_resp.headers["location"]
+
+    statuses = {
+        s["provider"]: s["connected"]
+        for s in (await client.get("/api/connectors", headers=headers)).json()
+    }
+    assert statuses["google_drive"] is True
+
+
+async def test_connector_sync_enqueues_a_job_without_running_ingestion(client: AsyncClient) -> None:
+    """The route must only ever insert a row -- never run the ingestion
+    pipeline in-process (Rule R-1). Admin-only enforcement itself is unit-
+    tested in tests/unit/apps/test_connectors_usecase.py, since the public
+    API has no way to create a non-admin user to exercise it here."""
+    headers = await _register_admin(client, "admin5@acmelawpartners.com")
+    resp = await client.post("/api/connectors/google_drive/sync", headers=headers)
+    assert resp.status_code == 201
+    job = resp.json()
+    assert job["status"] == "pending"
+    assert job["source"] == "google_drive"
+
+    jobs_resp = await client.get("/api/connectors/jobs", headers=headers)
+    assert jobs_resp.status_code == 200
+    assert len(jobs_resp.json()) == 1

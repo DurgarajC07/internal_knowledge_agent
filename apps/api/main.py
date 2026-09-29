@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from apps.api.middleware.audit_log import AuditLogMiddleware
 from apps.api.middleware.errors import register_exception_handlers
 from apps.api.middleware.rate_limit import RateLimitMiddleware
-from apps.api.routes import auth, chat, conversations, health
+from apps.api.routes import auth, chat, connectors, conversations, health
 from packages.clients.db import build_engine, build_session_factory
 from packages.clients.embedding_client import build_embedding_client
 from packages.clients.llm_client import build_llm_client
@@ -65,6 +65,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
     app.include_router(conversations.router, prefix="/api")
+    app.include_router(connectors.router, prefix="/api")
     return app
 
 

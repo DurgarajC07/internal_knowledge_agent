@@ -1,5 +1,7 @@
+import json
 from uuid import uuid4
 
+import httpx
 import respx
 from httpx import Response
 from mcp.types import CallToolResult, TextContent
@@ -101,6 +103,51 @@ async def test_get_page_content_concatenates_block_rich_text() -> None:
     text = _text(result)
     assert "The retainer fee is $12,000." in text
     assert "Due monthly." in text
+
+
+@respx.mock
+async def test_list_all_pages_follows_pagination() -> None:
+    def handler(request: httpx.Request) -> Response:
+        body = json.loads(request.content)
+        if body.get("start_cursor") == "cursor-2":
+            return Response(
+                200,
+                json={
+                    "has_more": False,
+                    "results": [
+                        {
+                            "id": "page-2",
+                            "url": "https://notion.so/page-2",
+                            "properties": {
+                                "title": {"type": "title", "title": [{"plain_text": "Page Two"}]}
+                            },
+                        }
+                    ],
+                },
+            )
+        return Response(
+            200,
+            json={
+                "has_more": True,
+                "next_cursor": "cursor-2",
+                "results": [
+                    {
+                        "id": "page-1",
+                        "url": "https://notion.so/page-1",
+                        "properties": {
+                            "title": {"type": "title", "title": [{"plain_text": "Page One"}]}
+                        },
+                    }
+                ],
+            },
+        )
+
+    respx.post("https://api.notion.com/v1/search").mock(side_effect=handler)
+
+    client = NotionClient(access_token="fake", allowed_hosts=["api.notion.com"])
+    pages = [p async for p in client.list_all_pages()]
+
+    assert [p.page_id for p in pages] == ["page-1", "page-2"]
 
 
 async def test_notion_client_rejects_non_allowlisted_host() -> None:

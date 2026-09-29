@@ -68,3 +68,12 @@ class ResourceNotFoundError(KnowledgeAgentError):
 
 class SSRFBlockedError(KnowledgeAgentError):
     """An outbound fetch target was rejected because its host is not allowlisted."""
+
+
+class OAuthConfigurationError(KnowledgeAgentError):
+    """A connector's OAuth client ID/secret is not configured on this deployment."""
+
+
+class OAuthStateInvalidError(KnowledgeAgentError):
+    """An OAuth callback's `state` parameter failed signature/expiry verification —
+    treated as a potential CSRF attempt, never trusted (Rule.md SS8)."""

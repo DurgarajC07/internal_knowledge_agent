@@ -28,6 +28,16 @@ class CredentialReader(Protocol):
     async def get(self, tenant_id: UUID, provider: ConnectorProvider) -> ConnectorCredential: ...
 
 
+class CredentialReadWriter(CredentialReader, Protocol):
+    """What apps/api/usecases/connectors.py depends on — the OAuth callback
+    writes a credential, and the connector-status endpoint lists which
+    providers are connected for a tenant."""
+
+    async def upsert(self, tenant_id: UUID, credential: ConnectorCredential) -> None: ...
+
+    async def list_providers(self, tenant_id: UUID) -> list[ConnectorProvider]: ...
+
+
 class CredentialRepository:
     def __init__(self, session: AsyncSession, encryption_key: str) -> None:
         self._session = session
@@ -82,3 +92,14 @@ class CredentialRepository:
             )
         )
         return [ConnectorProvider(value) for value in rows]
+
+    async def list_tenants_with_credential(self, provider: ConnectorProvider) -> list[UUID]:
+        """Used by services/ingestion/scheduler.py to find every tenant whose
+        connector needs a periodic re-sync (FR-6) — never used on the
+        request path."""
+        rows = await self._session.scalars(
+            select(ConnectorCredentialORM.tenant_id).where(
+                ConnectorCredentialORM.provider == provider.value
+            )
+        )
+        return list(rows)

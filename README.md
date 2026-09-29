@@ -19,11 +19,13 @@ All five phases in `Plan.md §4` have a working implementation:
 | 2 — Ingestion & RAG | Local file loader/parser/chunker, embedding + Qdrant clients, idempotent ingestion CLI, tenant-filtered retrieval |
 | 3 — Agent + MCP | Tool-calling orchestration loop, Google Drive & Notion MCP servers, encrypted per-tenant credential store, prompt-injection hygiene |
 | 4 — Frontend | JWT auth (signup/login), conversation persistence, streaming chat UI (Next.js), tenant isolation enforced end-to-end |
-| 5 — Productionization | Rate limiting, audit logging, Alembic migrations, Render/Vercel/Docker configs |
+| 5 — Productionization | Rate limiting, audit logging, Alembic migrations, Render/Vercel/Docker configs, OAuth connect flow + scheduled connector re-sync (FR-6) |
 
 Deliberate MVP scope decisions are recorded in [`docs/adr/`](docs/adr/) —
 read those before assuming something is a bug rather than a documented
-tradeoff.
+tradeoff. `docs/adr/0006` in particular closes the one functional gap
+(FR-6's OAuth connect + periodic re-sync) found after the first full pass —
+FR-2 and FR-3's documented simplifications (ADR-0002, ADR-0003) still stand.
 
 **Known limitation of this environment:** the actual LLM call (Ollama or a
 hosted provider) could not be live-tested here because neither Ollama nor a
@@ -101,7 +103,25 @@ uv run python -m services.ingestion.cli \
 
 Find your tenant UUID from the JWT you got at signup (decode it, or query the
 `tenants` table) — a `GET /api/tenants/me`-style convenience endpoint is a
-reasonable Phase-5+ follow-up, not yet built.
+reasonable follow-up, not yet built.
+
+### Connecting Google Drive / Notion (FR-6)
+
+1. Register an OAuth app with each provider and set
+   `GOOGLE_DRIVE_CLIENT_ID`/`SECRET` and/or `NOTION_CLIENT_ID`/`SECRET` in
+   `.env`. The redirect URI you register with the provider must exactly
+   match `{API_BASE_URL}/api/connectors/{provider}/callback`.
+2. As a tenant admin, visit `/settings/connectors` in the app and click
+   Connect — this hits `GET /api/connectors/{provider}/authorize`, redirects
+   to the provider's consent screen, and on approval the callback stores an
+   encrypted credential for your tenant.
+3. Click "Sync now" (`POST /api/connectors/{provider}/sync`) to queue an
+   immediate ingestion job, or just wait — `services/ingestion/scheduler.py`
+   re-syncs every connected tenant automatically (see
+   `INGESTION_RESYNC_INTERVAL_HOURS`; on Render this runs as a Cron job, see
+   `infrastructure/render.yaml`). Either way, the route only ever inserts a
+   `PENDING` row — the actual sync always runs out-of-request (Rule R-1).
+4. Run it manually any time with `uv run python -m services.ingestion.scheduler`.
 
 ## Checks (run before considering any change done — `AGENT.md §5.6`)
 

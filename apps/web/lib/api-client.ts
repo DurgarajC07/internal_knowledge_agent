@@ -47,6 +47,25 @@ export interface ChatStreamEvent {
   conversation_id?: string | null;
 }
 
+export type ConnectorProvider = "google_drive" | "notion";
+
+export interface ConnectorStatus {
+  provider: ConnectorProvider;
+  connected: boolean;
+}
+
+export interface IngestionJob {
+  id: string;
+  tenant_id: string;
+  source: string;
+  status: "pending" | "running" | "succeeded" | "failed";
+  document_count: number;
+  chunk_count: number;
+  error_message: string | null;
+  started_at: string;
+  finished_at: string | null;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -105,6 +124,22 @@ export const apiClient = {
 
   async getConversation(id: string): Promise<ConversationDetail> {
     return request(`/api/conversations/${id}`);
+  },
+
+  async listConnectors(): Promise<ConnectorStatus[]> {
+    return request("/api/connectors");
+  },
+
+  async getConnectorAuthorizeUrl(provider: ConnectorProvider): Promise<{ authorize_url: string }> {
+    return request(`/api/connectors/${provider}/authorize`);
+  },
+
+  async syncConnectorNow(provider: ConnectorProvider): Promise<IngestionJob> {
+    return request(`/api/connectors/${provider}/sync`, { method: "POST" });
+  },
+
+  async listIngestionJobs(): Promise<IngestionJob[]> {
+    return request("/api/connectors/jobs");
   },
 
   /**

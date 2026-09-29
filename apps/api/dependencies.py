@@ -19,6 +19,7 @@ from packages.clients.mcp_client import MCPClient
 from packages.clients.qdrant_client import VectorStore
 from packages.clients.repositories.conversation_repository import ConversationRepository
 from packages.clients.repositories.credential_repository import CredentialRepository
+from packages.clients.repositories.ingestion_job_repository import IngestionJobRepository
 from packages.clients.repositories.user_repository import UserRepository
 from packages.config.settings import Settings, get_settings
 from packages.core.exceptions import AuthenticationError
@@ -79,6 +80,10 @@ def get_conversation_repository(session: DbSession) -> ConversationRepository:
 
 def get_user_repository(session: DbSession) -> UserRepository:
     return UserRepository(session)
+
+
+def get_ingestion_job_repository(session: DbSession) -> IngestionJobRepository:
+    return IngestionJobRepository(session)
 
 
 async def get_current_session_user(

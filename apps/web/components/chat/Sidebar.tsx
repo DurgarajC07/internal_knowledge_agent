@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { Conversation } from "@/lib/api-client";
 
 interface SidebarProps {
@@ -49,7 +50,13 @@ export function Sidebar({
         ))}
       </nav>
 
-      <div className="border-t border-slate-200 p-3">
+      <div className="border-t border-slate-200 p-3 space-y-2">
+        <Link
+          href="/settings/connectors"
+          className="block text-sm text-slate-500 hover:text-slate-700"
+        >
+          Connected data sources
+        </Link>
         <button
           type="button"
           onClick={onLogout}

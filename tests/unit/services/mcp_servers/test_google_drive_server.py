@@ -61,8 +61,8 @@ async def test_search_files_returns_formatted_results() -> None:
 async def test_get_file_content_caps_output_at_configured_limit() -> None:
     _set_credential()
     respx.get(
-        "https://www.googleapis.com/drive/v3/files/file-1", params={"fields": "mimeType"}
-    ).mock(return_value=Response(200, json={"mimeType": "text/plain"}))
+        "https://www.googleapis.com/drive/v3/files/file-1", params={"fields": "name,mimeType"}
+    ).mock(return_value=Response(200, json={"name": "file-1.txt", "mimeType": "text/plain"}))
     respx.get("https://www.googleapis.com/drive/v3/files/file-1", params={"alt": "media"}).mock(
         return_value=Response(200, text="x" * 100)
     )
@@ -75,6 +75,65 @@ async def test_get_file_content_caps_output_at_configured_limit() -> None:
     text = _text(result)
     assert len(text) <= 10 + len("\n...(truncated)")
     assert "truncated" in text
+
+
+@respx.mock
+async def test_list_all_files_follows_pagination() -> None:
+    respx.get("https://www.googleapis.com/drive/v3/files", params={"pageToken": "page-2"}).mock(
+        return_value=Response(
+            200, json={"files": [{"id": "f2", "name": "b.txt", "webViewLink": "https://x/f2"}]}
+        )
+    )
+    respx.get("https://www.googleapis.com/drive/v3/files").mock(
+        return_value=Response(
+            200,
+            json={
+                "nextPageToken": "page-2",
+                "files": [{"id": "f1", "name": "a.txt", "webViewLink": "https://x/f1"}],
+            },
+        )
+    )
+
+    client = GoogleDriveClient(access_token="fake", allowed_hosts=["www.googleapis.com"])
+    files = [f async for f in client.list_all_files()]
+
+    assert [f.file_id for f in files] == ["f1", "f2"]
+
+
+@respx.mock
+async def test_download_file_names_exported_google_native_docs_as_txt() -> None:
+    respx.get(
+        "https://www.googleapis.com/drive/v3/files/doc-1", params={"fields": "name,mimeType"}
+    ).mock(
+        return_value=Response(
+            200, json={"name": "Q3 Plan", "mimeType": "application/vnd.google-apps.document"}
+        )
+    )
+    respx.get(
+        "https://www.googleapis.com/drive/v3/files/doc-1/export", params={"mimeType": "text/plain"}
+    ).mock(return_value=Response(200, text="the plan is..."))
+
+    client = GoogleDriveClient(access_token="fake", allowed_hosts=["www.googleapis.com"])
+    content, filename = await client.download_file("doc-1")
+
+    assert filename == "Q3 Plan.txt"
+    assert content == b"the plan is..."
+
+
+@respx.mock
+async def test_download_file_keeps_native_filename_for_non_google_types() -> None:
+    respx.get(
+        "https://www.googleapis.com/drive/v3/files/pdf-1", params={"fields": "name,mimeType"}
+    ).mock(return_value=Response(200, json={"name": "contract.pdf", "mimeType": "application/pdf"}))
+    respx.get("https://www.googleapis.com/drive/v3/files/pdf-1", params={"alt": "media"}).mock(
+        return_value=Response(200, content=b"%PDF-1.4 fake")
+    )
+
+    client = GoogleDriveClient(access_token="fake", allowed_hosts=["www.googleapis.com"])
+    content, filename = await client.download_file("pdf-1")
+
+    assert filename == "contract.pdf"
+    assert content == b"%PDF-1.4 fake"
 
 
 async def test_google_drive_client_rejects_non_allowlisted_host() -> None:
