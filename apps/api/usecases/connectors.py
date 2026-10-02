@@ -92,11 +92,24 @@ async def complete_authorize(
 
 
 async def list_statuses(
-    *, tenant_ctx: TenantContext, credential_repository: CredentialReadWriter
+    *,
+    tenant_ctx: TenantContext,
+    credential_repository: CredentialReadWriter,
+    settings: Settings,
 ) -> list[ConnectorStatus]:
     connected = set(await credential_repository.list_providers(tenant_ctx.tenant_id))
+    configured = {
+        ConnectorProvider.GOOGLE_DRIVE: bool(
+            settings.google_drive_client_id and settings.google_drive_client_secret
+        ),
+        ConnectorProvider.NOTION: bool(settings.notion_client_id and settings.notion_client_secret),
+    }
     return [
-        ConnectorStatus(provider=provider, connected=provider in connected)
+        ConnectorStatus(
+            provider=provider,
+            connected=provider in connected,
+            configured=configured[provider],
+        )
         for provider in ConnectorProvider
     ]
 

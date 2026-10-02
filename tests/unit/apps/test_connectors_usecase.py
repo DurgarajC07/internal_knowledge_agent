@@ -143,9 +143,10 @@ async def test_list_statuses_reports_connected_providers() -> None:
     )
 
     statuses = await connectors_usecase.list_statuses(
-        tenant_ctx=tenant_ctx, credential_repository=repo
+        tenant_ctx=tenant_ctx, credential_repository=repo, settings=_settings()
     )
 
     by_provider = {s.provider: s.connected for s in statuses}
     assert by_provider[ConnectorProvider.NOTION] is True
     assert by_provider[ConnectorProvider.GOOGLE_DRIVE] is False
+    assert all(status.configured for status in statuses)

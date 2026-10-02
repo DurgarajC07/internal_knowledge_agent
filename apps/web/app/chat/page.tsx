@@ -46,19 +46,14 @@ export default function ChatPage() {
   }, [isAuthenticated]);
 
   async function handleSelectConversation(id: string) {
-    setSelectedConversationId(id);
     setError(null);
-    const detail = await apiClient.getConversation(id);
-    setMessages(
-      detail.messages
-        .filter((m) => m.role === "user" || m.role === "assistant")
-        .map((m) => ({
-          id: m.id,
-          role: m.role as "user" | "assistant",
-          content: m.content,
-          citations: m.citations,
-        })),
-    );
+    try {
+      const detail = await apiClient.getConversation(id);
+      setSelectedConversationId(id);
+      setMessages(detail.messages.filter((m) => m.role === "user" || m.role === "assistant").map((m) => ({ id: m.id, role: m.role as "user" | "assistant", content: m.content, citations: m.citations })));
+    } catch {
+      setError("Could not open that conversation. Please try again.");
+    }
   }
 
   function handleNewChat() {
@@ -107,7 +102,13 @@ export default function ChatPage() {
       setError("Something went wrong while getting a response. Please try again.");
     } finally {
       setIsStreaming(false);
+      abortRef.current = null;
     }
+  }
+
+  function handleStop() {
+    abortRef.current?.abort();
+    setIsStreaming(false);
   }
 
   if (!isAuthenticated) return null;
@@ -131,7 +132,7 @@ export default function ChatPage() {
           </div>
         )}
         <MessageList messages={messages} isStreaming={isStreaming} />
-        <Composer onSend={handleSend} disabled={isStreaming} />
+        <Composer onSend={handleSend} onStop={handleStop} disabled={isStreaming} />
       </main>
     </div>
   );

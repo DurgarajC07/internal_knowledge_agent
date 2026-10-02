@@ -23,7 +23,20 @@ class Base(DeclarativeBase):
 
 
 def build_engine(settings: Settings) -> AsyncEngine:
-    return create_async_engine(settings.database_url, pool_pre_ping=True)
+    if settings.database_url.startswith("sqlite"):
+        return create_async_engine(
+            settings.database_url,
+            connect_args={"timeout": settings.database_pool_timeout_seconds},
+        )
+
+    return create_async_engine(
+        settings.database_url,
+        pool_pre_ping=True,
+        pool_size=settings.database_pool_size,
+        max_overflow=settings.database_max_overflow,
+        pool_timeout=settings.database_pool_timeout_seconds,
+        pool_recycle=settings.database_pool_recycle_seconds,
+    )
 
 
 def build_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

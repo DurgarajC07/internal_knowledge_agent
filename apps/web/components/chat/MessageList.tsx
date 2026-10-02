@@ -53,7 +53,14 @@ export function MessageList({
               : "mr-auto bg-white text-slate-900 shadow-sm"
           }`}
         >
-          <p className="whitespace-pre-wrap">{m.content}</p>
+          {m.content ? (
+            <p className="whitespace-pre-wrap leading-7">{m.content}</p>
+          ) : isStreaming ? (
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-600" />
+              <span>Thinking through your sources…</span>
+            </div>
+          ) : null}
           {m.role === "assistant" && <CitationList citations={m.citations} />}
         </div>
       ))}

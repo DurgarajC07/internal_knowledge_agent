@@ -1,15 +1,120 @@
-# Local dev / integration-test infrastructure only — never used in production
-# (Plan.md: Qdrant Cloud free tier for MVP prod; this is the $0 local loop).
-#
-# Usage: docker compose -f infrastructure/docker/docker-compose.yml up -d
+# Low-resource local stack. It is also a production-like smoke environment;
+# production credentials and managed services still belong in the deployment platform.
+# Usage: docker compose -f infrastructure/docker/docker-compose.yml up --build
+name: knowledge-agent
+
 services:
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/api.Dockerfile
+    environment:
+      ENVIRONMENT: development
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      LOCAL_LLM_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b-instruct}
+      EMBEDDING_PROVIDER: ollama
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      GOOGLE_DRIVE_CLIENT_ID: ${GOOGLE_DRIVE_CLIENT_ID:-}
+      GOOGLE_DRIVE_CLIENT_SECRET: ${GOOGLE_DRIVE_CLIENT_SECRET:-}
+      NOTION_CLIENT_ID: ${NOTION_CLIENT_ID:-}
+      NOTION_CLIENT_SECRET: ${NOTION_CLIENT_SECRET:-}
+      DATABASE_URL: postgresql+asyncpg://knowledge_agent:knowledge_agent@postgres:5432/knowledge_agent
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-only-insecure-secret-change-me}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-wZ0nQ3z6r6t2c8m0y6q0k0k3m4h9j1p6y6b3z8t5u4o=}
+      CORS_ALLOWED_ORIGINS: '["http://localhost:3000"]'
+      API_BASE_URL: http://localhost:8000
+      FRONTEND_BASE_URL: http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama-model-init:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    init: true
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+
+  ollama:
+    image: ollama/ollama:0.12.3
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-10m}
+      OLLAMA_NUM_PARALLEL: 1
+      OLLAMA_MAX_LOADED_MODELS: 1
+      OLLAMA_FLASH_ATTENTION: 1
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    mem_limit: 6g
+    cpus: 4.0
+    pids_limit: 256
+
+  ollama-model-init:
+    image: ollama/ollama:0.12.3
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b-instruct}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull \"$$OLLAMA_MODEL\" && ollama pull \"$$EMBEDDING_MODEL\""]
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: "no"
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 64
+
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: ../../infrastructure/docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    init: true
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.15.3
     ports:
       - "6333:6333"
-      - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/6333' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 128
 
   postgres:
     image: postgres:16-alpine
@@ -21,7 +126,24 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U knowledge_agent -d knowledge_agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
 
 volumes:
   qdrant_data:
+    name: ${QDRANT_VOLUME_NAME:-docker_qdrant_data}
+    external: true
   postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-docker_postgres_data}
+    external: true
+  ollama_data:
+    name: ${OLLAMA_VOLUME_NAME:-docker_ollama_data}
+    external: true

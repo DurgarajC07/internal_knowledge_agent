@@ -40,6 +40,9 @@ class QdrantVectorStore:
         self._client = client
         self._vector_size = vector_size
 
+    async def close(self) -> None:
+        await self._client.close()
+
     async def ensure_collection(self, tenant_id: UUID) -> None:
         name = collection_name(tenant_id)
         if not await self._client.collection_exists(name):
@@ -133,5 +136,5 @@ class QdrantVectorStore:
 
 
 def build_qdrant_store(settings: Settings) -> QdrantVectorStore:
-    client = AsyncQdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key)
+    client = AsyncQdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key or None)
     return QdrantVectorStore(client=client, vector_size=settings.embedding_dimensions)

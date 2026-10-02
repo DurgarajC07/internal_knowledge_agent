@@ -42,6 +42,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
+    await app.state.vector_store.close()
     await engine.dispose()
 
 

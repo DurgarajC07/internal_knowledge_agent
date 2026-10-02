@@ -68,12 +68,61 @@ cd ../..
 
 # 5. Local LLM (separate terminal)
 ollama serve
-ollama pull qwen2.5:7b-instruct
+ollama pull qwen2.5:3b-instruct
 ollama pull nomic-embed-text
 
 # 6. (Optional) local Qdrant + Postgres instead of sqlite
 docker compose -f infrastructure/docker/docker-compose.yml up -d
 ```
+
+### Full Docker stack
+
+The Compose file can run the API, Next.js web app, Qdrant, and Postgres together:
+
+```bash
+docker compose -f infrastructure/docker/docker-compose.yml up --build
+```
+
+The Compose project name is fixed to `knowledge-agent`, so use the same command
+from any working directory. For an existing installation after an interrupted
+startup, reconcile containers without touching named volumes:
+
+```bash
+docker compose -p knowledge-agent -f infrastructure/docker/docker-compose.yml up -d --remove-orphans
+```
+
+Do not use `docker rm -f` or `docker compose down -v` during recovery: the
+named volumes contain Postgres, Qdrant, and Ollama model data.
+
+For a fresh host, provision the external volumes once before startup:
+
+```bash
+docker volume create docker_postgres_data
+docker volume create docker_qdrant_data
+docker volume create docker_ollama_data
+```
+
+Open `http://localhost:3000`. The stack is intentionally sized for a small machine:
+one API worker, bounded request concurrency, small database pools, and explicit per-service
+memory/CPU/PID limits. The API waits for healthy Postgres and Qdrant before starting, and
+all services restart unless stopped. Override values through a root `.env` file, especially
+`NEXT_PUBLIC_API_BASE_URL`, `JWT_SECRET_KEY`, and `CREDENTIAL_ENCRYPTION_KEY` outside local development.
+
+The API image is `infrastructure/docker/api.Dockerfile`; the web image uses Next.js standalone
+output from `infrastructure/docker/web.Dockerfile`. Both run as non-root users.
+
+The Docker stack includes Ollama for low-cost self-hosted inference. It pulls
+`qwen2.5:3b-instruct` (Q4-class Ollama quantization by default) for chat and
+`nomic-embed-text` for embeddings, keeps one model loaded, and limits parallel
+requests to one to protect small hardware. Set `OLLAMA_MODEL` in `.env` before
+startup to select a compatible model. The default 3B model is the recommended
+low-compute balance for this local stack. A 7B instruct model remains available
+through `OLLAMA_MODEL` when answer quality matters more than response time.
+
+For a real production customer, prefer `LLM_PROVIDER=hosted` with a managed
+provider as specified in `Plan.md`. If self-hosting Ollama, provide a GPU-capable
+Docker runtime, persistent `ollama_data`, monitoring, and a tested pinned image
+digest before exposing it to users.
 
 ## Running
 

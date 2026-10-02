@@ -4,9 +4,11 @@ import { useState } from "react";
 
 export function Composer({
   onSend,
+  onStop,
   disabled,
 }: {
   onSend: (message: string) => void;
+  onStop: () => void;
   disabled: boolean;
 }) {
   const [value, setValue] = useState("");
@@ -29,13 +31,15 @@ export function Composer({
         disabled={disabled}
         className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none disabled:bg-slate-50"
       />
-      <button
-        type="submit"
-        disabled={disabled || value.trim().length === 0}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-      >
-        Send
-      </button>
+      {disabled ? (
+        <button type="button" onClick={onStop} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          Stop
+        </button>
+      ) : (
+        <button type="submit" disabled={value.trim().length === 0} className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-800 disabled:opacity-50">
+          Send
+        </button>
+      )}
     </form>
   );
 }

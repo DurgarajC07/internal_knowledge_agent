@@ -31,9 +31,10 @@ router = APIRouter(prefix="/connectors", tags=["connectors"])
 async def list_connectors(
     tenant_ctx: Annotated[TenantContext, Depends(deps.get_tenant_context)],
     credential_repository: Annotated[CredentialRepository, Depends(deps.get_credential_repository)],
+    settings: Annotated[Settings, Depends(deps.get_settings_dep)],
 ) -> list[ConnectorStatus]:
     return await connectors_usecase.list_statuses(
-        tenant_ctx=tenant_ctx, credential_repository=credential_repository
+        tenant_ctx=tenant_ctx, credential_repository=credential_repository, settings=settings
     )
 
 

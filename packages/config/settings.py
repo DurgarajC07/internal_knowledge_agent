@@ -38,6 +38,10 @@ class Settings(BaseSettings):
 
     # --- Relational store ---
     database_url: str = "sqlite+aiosqlite:///./dev.db"
+    database_pool_size: int = 5
+    database_max_overflow: int = 2
+    database_pool_timeout_seconds: int = 10
+    database_pool_recycle_seconds: int = 1800
 
     # --- Auth ---
     jwt_secret_key: str = "dev-only-insecure-secret-change-me"

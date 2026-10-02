@@ -19,6 +19,7 @@ class ConnectorStatus(BaseModel):
 
     provider: ConnectorProvider
     connected: bool
+    configured: bool
 
 
 class IngestionJobOut(BaseModel):

@@ -52,6 +52,7 @@ export type ConnectorProvider = "google_drive" | "notion";
 export interface ConnectorStatus {
   provider: ConnectorProvider;
   connected: boolean;
+  configured: boolean;
 }
 
 export interface IngestionJob {
